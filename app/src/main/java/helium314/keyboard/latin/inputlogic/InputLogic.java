@@ -2765,3 +2765,47 @@ public final class InputLogic {
         }
     }
 }
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;    private static final Pattern AUTO_COMMA = Pattern.compile(
+            "([\\p{L}\\p{N}-]+)\\s+(потому что|чтобы|что|но|а|зато|однако|который|которая|которое|которые|которого|которой|которому|которым|которых|если|когда)\\s$",
+            Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Set<String> NO_COMMA_AFTER = new HashSet<>(Arrays.asList(
+            "и", "а", "но", "да", "или", "не", "ни", "в", "на", "за", "из", "от", "по", "с", "со",
+            "к", "у", "о", "об", "для", "до", "после", "ради", "потому", "так", "ну", "же", "ли", "бы"));
+
+    private void autoPunctuate(final SettingsValues sv) {
+        try {
+            final int type = sv.mInputAttributes.mInputType;
+            if ((type & InputType.TYPE_MASK_CLASS) != InputType.TYPE_CLASS_TEXT) return;
+            final int variation = type & InputType.TYPE_MASK_VARIATION;
+            if (variation == InputType.TYPE_TEXT_VARIATION_PASSWORD
+                    || variation == InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                    || variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD
+                    || InputTypeUtils.isUriOrEmailType(type)) return;
+            if (mWordComposer.isComposingWord()) return;
+            final CharSequence before = mConnection.getTextBeforeCursor(60, 0);
+            if (before == null || before.length() < 4) return;
+            final String text = before.toString();
+            // " - " -> " — "
+            if (text.endsWith(" - ") && Character.isLetterOrDigit(text.charAt(text.length() - 4))) {
+                mConnection.deleteTextBeforeCursor(3);
+                mConnection.commitText(" — ", 1);
+                return;
+            }
+            // запятая перед союзами
+            final Matcher m = AUTO_COMMA.matcher(text);
+            if (m.find() && !NO_COMMA_AFTER.contains(m.group(1).toLowerCase(Locale.ROOT))) {
+                final int tailLen = text.length() - m.end(1);
+                mConnection.deleteTextBeforeCursor(tailLen);
+                mConnection.commitText(", " + m.group(2) + " ", 1);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "autoPunctuate failed", e);
+        }
+    }            currentEvent = currentEvent.getNextEvent();
+}        if (processedEvent.getCodePoint() == Constants.CODE_SPACE) {
+            autoPunctuate(settingsValues);
+}
